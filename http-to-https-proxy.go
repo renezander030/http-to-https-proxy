@@ -2,12 +2,14 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"os"
 	"strconv"
+	"time"
 )
 
 var versionCode = "v0.3"
@@ -76,6 +78,8 @@ func handler(responseToRequest http.ResponseWriter, incomingRequest *http.Reques
 
 	defer returnConn.Close()
 
+	conn.SetDeadline(time.Now().Add(3 * time.Second))
+
 	readBuf := make([]byte, proxyBufferSize)
 
 	for {
@@ -105,6 +109,8 @@ func handler(responseToRequest http.ResponseWriter, incomingRequest *http.Reques
 	}
 
 	log.Println("End of handler")
+
+	io.WriteString(responseToRequest, "I am slow!\n")
 
 }
 
@@ -157,5 +163,15 @@ func main() {
 
 	if err := http.ListenAndServe(":"+strconv.Itoa(httpListenPort), nil); err != nil {
 		log.Fatal(err)
+	}
+
+	srv := http.Server{
+		Addr:         ":" + strconv.Itoa(httpListenPort),
+		WriteTimeout: 5 * time.Second,
+		Handler:      http.TimeoutHandler(http.HandlerFunc(handler), 1*time.Second, "Timeout!\n"),
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
+		fmt.Printf("Server failed: %s\n", err)
 	}
 }
